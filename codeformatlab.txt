@@ -1,0 +1,85 @@
+clear all;
+clf('reset');
+ 
+cam = webcam();
+flicker = imread('DSP1.jpg');
+noflicker = imread('DSP2.jpg');
+ 
+detector = vision.CascadeObjectDetector();
+detector1 = vision.CascadeObjectDetector('EyePairBig');
+ 
+counter = 0;
+ 
+while true
+    vid = snapshot(cam);
+    vid = rgb2gray(vid);
+    img = flip(vid, 2);
+ 
+    bbox = step(detector, img);
+ 
+    if ~isempty(bbox)
+        biggest_box = 1;
+        for i = 1:size(bbox, 1)
+            if bbox(i, 3) > bbox(biggest_box, 3)
+                biggest_box = i;
+            end
+        end
+ 
+        faceImage = imcrop(img, bbox(biggest_box, :));
+        bboxeyes = step(detector1, faceImage);
+ 
+        if ~isempty(bboxeyes)
+            biggest_box_eyes = 1;
+            for i = 1:size(bboxeyes, 1)
+                if bboxeyes(i, 3) > bboxeyes(biggest_box_eyes, 3)
+                    biggest_box_eyes = i;
+                end
+            end
+ 
+            bboxeyes = [bboxeyes(biggest_box_eyes, 1), bboxeyes(biggest_box_eyes, 2), bboxeyes(biggest_box_eyes, 3), bboxeyes(biggest_box_eyes, 4)];
+ 
+            eyesImage = imcrop(faceImage, bboxeyes);
+            eyesImage = imadjust(eyesImage);
+ 
+            r = bboxeyes(1, 4) / 4;
+            [centers, radii, ~] = imfindcircles(eyesImage, [floor(r - r / 4) floor(r + r / 2)], 'ObjectPolarity', 'dark', 'Sensitivity', 0.93);
+ 
+            if ~isempty(radii)
+                [~, I] = max(radii);
+                eyesPositions = centers(I, :);
+            else
+                eyesPositions = [];
+            end
+ 
+            figure(1);
+            subplot(3, 2, 1), subimage(img);
+            hold on;
+            rectangle('Position', bbox(biggest_box, :), 'LineWidth', 2, 'EdgeColor', 'y');
+            hold off;
+ 
+            subplot(3, 2, 3), subimage(faceImage);
+ 
+            subplot(3, 2, 2), subimage(eyesImage);
+            hold on;
+            viscircles(centers, radii, 'EdgeColor', 'g');
+            hold off;
+ 
+            subplot(3, 2, 4);
+            if isempty(eyesPositions)
+                counter = counter + 1;
+                disp('There is flicker');
+                subimage(noflicker);
+            else
+                counter = counter;
+                disp('There is no flicker');
+                subimage(flicker);
+            end
+ 
+            if counter >= 5
+                disp('You are drowsy');
+            end
+        end
+    end
+ 
+    drawnow;
+end
